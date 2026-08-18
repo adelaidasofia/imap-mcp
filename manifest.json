@@ -1,0 +1,44 @@
+{
+  "manifest_version": "0.4",
+  "name": "icloud-mcp",
+  "display_name": "iCloud Mail for the second brain",
+  "version": "0.1.0",
+  "description": "Reads iCloud Mail over IMAP, writes markdown notes into an Obsidian vault, and emits RawItem records for the Mycelium runtime. Read-only against the mailbox.",
+  "author": {
+    "name": "adelaidasofia",
+    "url": "https://github.com/adelaidasofia"
+  },
+  "license": "UNLICENSED",
+  "keywords": ["mcp", "model-context-protocol", "claude", "fastmcp", "icloud", "imap", "email"],
+  "server": {
+    "type": "python",
+    "entry_point": "icloud_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "icloud-mcp"],
+      "env": {
+        "ICLOUD_ACCOUNT": "${user_config.icloud_account}",
+        "ICLOUD_MCP_VAULT_ROOT": "${user_config.vault_root}"
+      }
+    }
+  },
+  "user_config": {
+    "icloud_account": {
+      "type": "string",
+      "title": "iCloud address",
+      "description": "The iCloud email address used as the IMAP username.",
+      "required": true
+    },
+    "vault_root": {
+      "type": "directory",
+      "title": "Vault root",
+      "description": "Obsidian vault that synced mail is written into.",
+      "required": true
+    }
+  },
+  "tools_generated": true,
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": { "python": ">=3.11" }
+  }
+}
