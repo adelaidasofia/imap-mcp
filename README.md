@@ -12,7 +12,9 @@ boundary, never on a public repo.
 ## Why local, not a hosted connector
 
 An Apple app-specific password is unscoped: full mailbox read+write, no
-refresh token, no per-scope revocation. Hosting it centrally would
+refresh token, no per-scope revocation. (iCloud's IMAP greeting advertises
+`AUTH=XOAUTH2`, but Apple publishes no third-party way to obtain such a
+token — `AUTH=PLAIN` with an ASP is the only door open to us.) Hosting it centrally would
 concentrate unscoped mailbox credentials on a server. It stays in the local
 Keychain. This is a deliberate departure from the usual remote-HTTP default
 for API wrappers — the deciding factor is credential custody, not transport.

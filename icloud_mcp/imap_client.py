@@ -5,9 +5,20 @@ rule — only `keychain.py` is macOS-specific. This module is the ONE place
 that speaks IMAP; the MCP tool layer and the future memory-runtime-pro
 adapter both sit on top of it.
 
-Endpoints are Apple's published iCloud Mail settings. They are NOT verified
-by a probe at import time; the first `connect()` is the verification, and it
-fails loud with kind="transport" rather than degrading.
+Endpoints verified live 2026-08-18: imap.mail.me.com:993 serves a valid
+Apple certificate (CN=imap.mail.me.com) and greets with
+
+    * OK [CAPABILITY XAPPLEPUSHSERVICE IMAP4 IMAP4rev1 SASL-IR
+          AUTH=ATOKEN AUTH=PLAIN AUTH=ATOKEN2 AUTH=XOAUTH2]
+
+Note the advertised AUTH=XOAUTH2: iCloud speaks the mechanism, but Apple
+publishes no way for a third party to OBTAIN such a token — ATOKEN/XOAUTH2
+are for Apple's own clients. So AUTH=PLAIN with an app-specific password
+remains the only door available to us, and "iCloud has no OAuth" means "no
+public OAuth grant", not "the server refuses the mechanism".
+
+There is still no probe at import time; the first `connect()` is the real
+verification and fails loud with kind="transport" rather than degrading.
 
 Two correctness rails worth naming, because both fail silently otherwise:
 
