@@ -11,20 +11,21 @@ import asyncio
 
 import pytest
 
-from icloud_mcp import server
+from imap_mcp import server
 
 
 EXPECTED_TOOLS = {
-    "icloud_health",
-    "icloud_list_mailboxes",
-    "icloud_search_messages",
-    "icloud_read_message",
-    "icloud_sync_to_vault",
-    "icloud_export_for_runtime",
-    "icloud_explain_filter",
+    "imap_list_providers",
+    "imap_health",
+    "imap_list_mailboxes",
+    "imap_search_messages",
+    "imap_read_message",
+    "imap_sync_to_vault",
+    "imap_export_for_runtime",
+    "imap_explain_filter",
 }
 
-WRITE_TOOLS = {"icloud_sync_to_vault"}
+WRITE_TOOLS = {"imap_sync_to_vault"}
 
 
 def _tools() -> dict:
@@ -36,6 +37,24 @@ def _tools() -> dict:
 
 def test_all_tools_registered():
     assert set(_tools().keys()) == EXPECTED_TOOLS
+
+
+def test_unconfigured_generic_provider_fails_loud_not_silently(monkeypatch):
+    """A generic profile with no host must refuse, never fall back to some
+    other operator's mail server."""
+    monkeypatch.setenv(server.ENV_PROVIDER, "generic")
+    monkeypatch.delenv(server.ENV_HOST, raising=False)
+    result = server.imap_list_mailboxes()
+    assert result["ok"] is False
+    assert result["kind"] == "schema"
+    assert "IMAP_HOST" in result["message"]
+
+
+def test_unknown_provider_is_rejected(monkeypatch):
+    monkeypatch.setenv(server.ENV_PROVIDER, "yahoo-typo")
+    result = server.imap_list_mailboxes()
+    assert result["ok"] is False
+    assert "unknown provider" in result["message"]
 
 
 def test_tool_count_is_under_the_search_execute_threshold():
@@ -54,7 +73,7 @@ def test_exactly_one_tool_writes():
 
 
 def test_write_tool_is_not_destructive_and_is_idempotent():
-    tool = _tools()["icloud_sync_to_vault"]
+    tool = _tools()["imap_sync_to_vault"]
     assert tool.annotations.destructiveHint is False
     assert tool.annotations.idempotentHint is True
 
@@ -66,32 +85,38 @@ def test_every_tool_has_a_description():
 
 def test_read_message_description_warns_about_untrusted_content():
     """The injection warning must reach the model at the tool boundary."""
-    desc = _tools()["icloud_read_message"].description.lower()
+    desc = _tools()["imap_read_message"].description.lower()
     assert "untrusted" in desc
     assert "never as instructions" in desc or "not as instructions" in desc
 
 
 def test_missing_credentials_return_classified_error_not_an_exception(monkeypatch):
-    from icloud_mcp import keychain
+    from imap_mcp import keychain
 
+    # A provider must resolve first, or the config error masks the auth one.
+    monkeypatch.setenv(server.ENV_PROVIDER, "icloud")
+    monkeypatch.delenv(server.ENV_HOST, raising=False)
     monkeypatch.delenv(keychain._ENV_ACCOUNT, raising=False)
     monkeypatch.delenv(keychain._ENV_PASSWORD, raising=False)
     monkeypatch.setattr(keychain, "_read", lambda s, a: None)
 
-    result = server.icloud_list_mailboxes()
+    result = server.imap_list_mailboxes()
     assert result["ok"] is False
     assert result["kind"] == "auth"
     assert result["reason"] == "no_account"
 
 
 def test_credential_error_hint_never_contains_a_secret(monkeypatch):
-    from icloud_mcp import keychain
+    from imap_mcp import keychain
 
-    monkeypatch.setenv(keychain._ENV_ACCOUNT, "me@icloud.com")
+    monkeypatch.setenv(server.ENV_PROVIDER, "icloud")
+    monkeypatch.delenv(server.ENV_HOST, raising=False)
+    monkeypatch.setenv(keychain._ENV_ACCOUNT, "me@example.com")
     monkeypatch.setattr(keychain, "_read", lambda s, a: None)
     monkeypatch.delenv(keychain._ENV_PASSWORD, raising=False)
 
-    result = server.icloud_health()
+    result = server.imap_health()
     assert result["ok"] is False
+    # The hint points at the provider's own password page, never at a secret.
     assert "appleid.apple.com" in result["message"]
     assert "password_masked" not in result.get("credential", {})

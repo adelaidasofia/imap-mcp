@@ -1,12 +1,13 @@
-"""iCloud Mail IMAP core.
+"""Provider-agnostic IMAP core.
 
 Cross-platform (stdlib `imaplib` + `ssl`) per the Mycelium cross-platform
 rule — only `keychain.py` is macOS-specific. This module is the ONE place
 that speaks IMAP; the MCP tool layer and the future memory-runtime-pro
-adapter both sit on top of it.
+adapter both sit on top of it. Endpoints come from `providers.py`, never
+from a constant here, so adding a mail host is a table entry.
 
-Endpoints verified live 2026-08-18: imap.mail.me.com:993 serves a valid
-Apple certificate (CN=imap.mail.me.com) and greets with
+iCloud endpoint verified live 2026-08-18: imap.mail.me.com:993 serves a
+valid Apple certificate (CN=imap.mail.me.com) and greets with
 
     * OK [CAPABILITY XAPPLEPUSHSERVICE IMAP4 IMAP4rev1 SASL-IR
           AUTH=ATOKEN AUTH=PLAIN AUTH=ATOKEN2 AUTH=XOAUTH2]
@@ -48,10 +49,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from typing import Iterator, Optional
 
-IMAP_HOST = "imap.mail.me.com"
-IMAP_PORT = 993
-SMTP_HOST = "smtp.mail.me.com"
-SMTP_PORT = 587
+# Endpoints live in providers.py. Nothing vendor-specific belongs here.
 
 # imaplib's default is 10000 bytes per line, which truncates large headers.
 imaplib._MAXLINE = max(getattr(imaplib, "_MAXLINE", 10000), 1_000_000)
@@ -127,8 +125,9 @@ def _classify(exc: BaseException) -> IMAPError:
         if "authentication" in text or "login" in text or "invalid credentials" in text:
             # Deliberately does NOT interpolate `exc` — it may contain the ASP.
             return AuthError(
-                "iCloud rejected the app-specific password (or 2FA is off on "
-                "the Apple ID). Re-mint at appleid.apple.com."
+                "the mail server rejected the app-specific password. Re-mint "
+                "it with the provider (imap_list_providers gives the URL); "
+                "most providers also require two-factor auth to be enabled."
             )
         if "throttl" in text or "too many" in text:
             return IMAPError("imap throttled", kind="rate_limit")
@@ -217,19 +216,24 @@ def decode_mailbox(raw: bytes) -> str:
 
 @contextmanager
 def connect(
-    account: str, password: str, *, timeout: int = DEFAULT_TIMEOUT
+    account: str,
+    password: str,
+    *,
+    host: str,
+    port: int = 993,
+    timeout: int = DEFAULT_TIMEOUT,
 ) -> Iterator[imaplib.IMAP4_SSL]:
     """Open an authenticated TLS IMAP session, always closing it.
 
     Certificate verification is left at Python's secure default
     (`ssl.create_default_context`) — hostname checked, CA chain verified.
+    `host` is required: there is no default mail server, because guessing
+    one would silently send a credential to the wrong operator.
     """
     conn: Optional[imaplib.IMAP4_SSL] = None
     try:
         context = ssl.create_default_context()
-        conn = imaplib.IMAP4_SSL(
-            IMAP_HOST, IMAP_PORT, ssl_context=context, timeout=timeout
-        )
+        conn = imaplib.IMAP4_SSL(host, port, ssl_context=context, timeout=timeout)
         conn.login(account, password)
     except BaseException as exc:  # noqa: BLE001 - re-raised as classified
         if conn is not None:
@@ -382,18 +386,20 @@ def fetch_messages(
     )
 
 
-def health(account: str, password: str) -> dict[str, object]:
+def health(
+    account: str, password: str, *, host: str, port: int = 993, source: str = "imap"
+) -> dict[str, object]:
     """Probe reachability. Errors are SWALLOWED into ok=False, never raised —
     same contract as memory-runtime-pro `Adapter.health`.
     """
     started = datetime.now(timezone.utc)
     try:
-        with connect(account, password) as conn:
+        with connect(account, password, host=host, port=port) as conn:
             list_mailboxes(conn)
     except IMAPError as exc:
         return {
             "ok": False,
-            "source": "icloud",
+            "source": source,
             "kind": exc.kind,
             "message": str(exc),
             "latency_ms": None,
@@ -402,7 +408,7 @@ def health(account: str, password: str) -> dict[str, object]:
         classified = _classify(exc)
         return {
             "ok": False,
-            "source": "icloud",
+            "source": source,
             "kind": classified.kind,
             "message": str(classified),
             "latency_ms": None,
@@ -410,7 +416,7 @@ def health(account: str, password: str) -> dict[str, object]:
     latency = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
     return {
         "ok": True,
-        "source": "icloud",
+        "source": source,
         "kind": "ok",
         "message": None,
         "latency_ms": latency,

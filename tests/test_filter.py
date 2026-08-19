@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from icloud_mcp import filter as f
+from imap_mcp import filter as f
 
 
 def item(**over):
@@ -55,9 +55,9 @@ def test_answered_flag_keeps_even_an_automated_sender():
 
 def test_explicit_block_beats_explicit_allow():
     keep, reason = f.should_ingest(
-        item(author="nelly@example.com"),
-        extra_allow=["nelly@example.com"],
-        extra_block=["nelly@example.com"],
+        item(author="sam@example.com"),
+        extra_allow=["sam@example.com"],
+        extra_block=["sam@example.com"],
     )
     assert not keep and reason == "extra_block"
 

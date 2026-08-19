@@ -1,4 +1,4 @@
-"""iCloud smart-default filter — the IMAP analogue of the Gmail one.
+"""IMAP smart-default filter — the IMAP analogue of the Gmail adapter's.
 
 Mirrors the MYC-148 contract in
 `memory-runtime-pro:src/adapters/gmail/filter.py`:
@@ -44,6 +44,10 @@ AUTOMATED_SENDER_PATTERNS: tuple[str, ...] = (
     "support@",
 )
 
+# Fallback names, used only when no provider profile is supplied. The real
+# names come from providers.py — a filter that hardcodes English Apple
+# folder names misclassifies every other provider and every non-English
+# locale, silently.
 SKIP_MAILBOXES: tuple[str, ...] = (
     "junk",
     "spam",
@@ -75,6 +79,7 @@ def should_ingest(
     smart_defaults_enabled: bool = True,
     extra_allow: Iterable[str] = (),
     extra_block: Iterable[str] = (),
+    provider: Any = None,
 ) -> tuple[bool, str]:
     """Decide whether one normalized item is worth ingesting.
 
@@ -100,10 +105,13 @@ def should_ingest(
     if not smart_defaults_enabled:
         return True, "smart_defaults_disabled"
 
-    if any(mailbox == m for m in SKIP_MAILBOXES):
+    skip_names = tuple(getattr(provider, "skip_mailboxes", ()) or SKIP_MAILBOXES)
+    keep_names = tuple(getattr(provider, "sent_mailboxes", ()) or KEEP_MAILBOXES)
+
+    if any(mailbox == m for m in skip_names):
         return False, f"mailbox:{mailbox}"
 
-    if any(mailbox == m for m in KEEP_MAILBOXES):
+    if any(mailbox == m for m in keep_names):
         return True, "sent_by_user"
 
     # \Answered — the user replied, so the thread matters to them.
@@ -131,6 +139,7 @@ def partition(
     smart_defaults_enabled: bool = True,
     extra_allow: Iterable[str] = (),
     extra_block: Iterable[str] = (),
+    provider: Any = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split items into (kept, skipped). Skipped carry `_filter_reason` so a
     surface can render WHY something was dropped — a silently shrunk result
@@ -144,6 +153,7 @@ def partition(
             smart_defaults_enabled=smart_defaults_enabled,
             extra_allow=extra_allow,
             extra_block=extra_block,
+            provider=provider,
         )
         if ok:
             kept.append(item)

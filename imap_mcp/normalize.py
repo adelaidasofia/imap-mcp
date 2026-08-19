@@ -29,7 +29,7 @@ from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
 from typing import Any, Optional
 
-SOURCE = "icloud"
+SOURCE = "imap"
 
 # Cap a single body so one pathological message cannot flood the context.
 MAX_BODY_CHARS = 20_000
@@ -140,7 +140,7 @@ def extract_body(msg: EmailMessage) -> str:
     body = _WS_RE.sub(" ", body.replace("\r\n", "\n").replace("\r", "\n"))
     body = _BLANKS_RE.sub("\n\n", body).strip()
     if len(body) > MAX_BODY_CHARS:
-        body = body[:MAX_BODY_CHARS] + "\n\n[truncated by icloud-mcp]"
+        body = body[:MAX_BODY_CHARS] + "\n\n[truncated by imap-mcp]"
     return body
 
 
@@ -172,12 +172,17 @@ def slugify(text: str, *, limit: int = 60) -> str:
     return (slug[:limit].rstrip("-")) or "untitled"
 
 
-def vault_relative_path(mailbox: str, subject: str, when: datetime) -> str:
+def vault_relative_path(
+    mailbox: str, subject: str, when: datetime, provider_label: str = "Mail"
+) -> str:
     """Vault destination, matching the convention in the RawItem docstring
     ("External Inputs/Gmail/inbox/2026-05-27-subject.md").
+
+    Keyed by provider so two mailboxes on different providers never collide
+    on the same path.
     """
     return (
-        f"External Inputs/iCloud Mail/{slugify(mailbox, limit=40)}/"
+        f"External Inputs/{provider_label}/{slugify(mailbox, limit=40)}/"
         f"{when.strftime('%Y-%m-%d')}-{slugify(subject)}.md"
     )
 
@@ -193,7 +198,7 @@ def stable_source_id(msg: EmailMessage, uid: int, uidvalidity: int) -> str:
     mid = decode_hdr(msg.get("Message-ID"))
     if mid:
         return mid.strip("<> ")
-    return f"icloud-uid:{uidvalidity}:{uid}"
+    return f"imap-uid:{uidvalidity}:{uid}"
 
 
 def to_raw_item(
@@ -204,6 +209,8 @@ def to_raw_item(
     mailbox: str = "INBOX",
     flags: Optional[list[str]] = None,
     fence: bool = True,
+    provider_slug: str = "imap",
+    provider_label: str = "Mail",
 ) -> dict[str, Any]:
     """Build a `RawItem`-shaped dict. Keys match the dataclass exactly."""
     subject = decode_hdr(msg.get("Subject")) or "(no subject)"
@@ -216,7 +223,7 @@ def to_raw_item(
     labels += [f for f in (flags or []) if f]
 
     return {
-        "source": SOURCE,
+        "source": provider_slug or SOURCE,
         "source_id": stable_source_id(msg, uid, uidvalidity),
         "title": subject,
         "body": fence_untrusted(body) if fence else body,
@@ -225,6 +232,7 @@ def to_raw_item(
         "author": sender or None,
         "labels": labels,
         "metadata": {
+            "provider": provider_slug,
             "mailbox": mailbox,
             "uid": uid,
             "uidvalidity": uidvalidity,
@@ -239,5 +247,5 @@ def to_raw_item(
             "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
             "content_is_untrusted": True,
         },
-        "relative_path": vault_relative_path(mailbox, subject, when),
+        "relative_path": vault_relative_path(mailbox, subject, when, provider_label),
     }

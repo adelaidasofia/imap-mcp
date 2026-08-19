@@ -11,7 +11,7 @@ import imaplib
 import socket
 import ssl
 
-from icloud_mcp import imap_client as ic
+from imap_mcp import imap_client as ic
 
 
 # --------------------------------------------------------------------------
@@ -43,7 +43,7 @@ def test_auth_failure_message_never_echoes_the_credential():
     classified = ic._classify(raw)
     assert classified.kind == "auth"
     assert secret not in str(classified)
-    assert "appleid.apple.com" in str(classified)
+    assert "app-specific password" in str(classified)
 
 
 def test_kind_vocabulary_is_closed():

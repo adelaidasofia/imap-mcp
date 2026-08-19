@@ -6,7 +6,7 @@ import email
 import email.policy
 from datetime import datetime, timezone
 
-from icloud_mcp import normalize
+from imap_mcp import normalize
 
 # HARDCODED, not derived from the module under test. This is the field list
 # read from memory-runtime-pro:src/adapters/base.py::RawItem on origin/main
@@ -32,7 +32,7 @@ def _msg(raw: str):
 
 
 SIMPLE = """\
-From: Nelly Ortiz <nelly@example.com>
+From: Sam Rivera <sam@example.com>
 To: me@icloud.com
 Subject: Cohort planning
 Date: Tue, 12 Aug 2026 09:30:00 +0000
@@ -50,12 +50,12 @@ def test_raw_item_field_conformance():
 
 def test_core_field_values():
     item = normalize.to_raw_item(_msg(SIMPLE), uid=42, uidvalidity=7, mailbox="INBOX")
-    assert item["source"] == "icloud"
+    assert item["source"] == "imap"
     assert item["title"] == "Cohort planning"
-    assert "nelly@example.com" in item["author"]
+    assert "sam@example.com" in item["author"]
     assert item["source_id"] == "abc123@example.com"
     assert item["created_at"] == datetime(2026, 8, 12, 9, 30, tzinfo=timezone.utc)
-    assert item["relative_path"].startswith("External Inputs/iCloud Mail/inbox/")
+    assert item["relative_path"].startswith("External Inputs/Mail/inbox/")
     assert item["relative_path"].endswith("2026-08-12-cohort-planning.md")
 
 
@@ -91,7 +91,7 @@ def test_source_id_falls_back_to_uidvalidity_qualified_uid():
     """A bare UID would collide across a mailbox rebuild."""
     no_mid = SIMPLE.replace("Message-ID: <abc123@example.com>\n", "")
     item = normalize.to_raw_item(_msg(no_mid), uid=99, uidvalidity=5)
-    assert item["source_id"] == "icloud-uid:5:99"
+    assert item["source_id"] == "imap-uid:5:99"
 
 
 def test_html_only_body_is_detagged():
@@ -121,5 +121,5 @@ def test_newsletter_header_is_captured():
 def test_body_is_truncated_at_cap():
     big = SIMPLE.replace("Let's lock the agenda.", "x" * (normalize.MAX_BODY_CHARS + 500))
     item = normalize.to_raw_item(_msg(big), uid=1, uidvalidity=1, fence=False)
-    assert "[truncated by icloud-mcp]" in item["body"]
+    assert "[truncated by imap-mcp]" in item["body"]
     assert len(item["body"]) < normalize.MAX_BODY_CHARS + 200

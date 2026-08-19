@@ -1,19 +1,18 @@
-"""macOS Keychain wrapper for icloud-mcp secrets.
+"""macOS Keychain wrapper for imap-mcp secrets.
 
 One surface stored here:
 
-    - ICLOUD_APP_SPECIFIC_PASSWORD
-        service="icloud-mcp", account=<apple-id email>
+    - IMAP_APP_PASSWORD
+        service="imap-mcp", account=<email address>
 
-iCloud Mail has NO OAuth and NO REST API. IMAP + an Apple ID app-specific
-password (ASP) is the only programmatic door, and an ASP is UNSCOPED: it
-grants full mailbox read+write, carries no refresh token, and cannot be
-narrowed per-scope. That is exactly why it stays in the local Keychain and
-never in a `.env`, a `.mcp.json` env block, or a hosted multi-tenant store.
+An app-specific password is UNSCOPED at almost every provider: full mailbox
+read+write, no refresh token, no per-scope revocation. That is exactly why
+it stays in the local Keychain and never in a `.env`, a `.mcp.json` env
+block, or a hosted multi-tenant store.
 
-Mint one at appleid.apple.com (requires 2FA on the Apple ID), then:
+Mint one with your provider (`imap_list_providers` gives the URL), then:
 
-    security add-generic-password -s icloud-mcp -a you@icloud.com -w
+    security add-generic-password -s imap-mcp -a you@example.com -w
 
 `security` prompts for the value so it never lands in shell history.
 
@@ -31,20 +30,20 @@ import os
 import subprocess
 from typing import Optional
 
-SERVICE = "icloud-mcp"
+SERVICE = "imap-mcp"
 
 # Env override exists for CI and for non-macOS hosts (the IMAP core itself is
 # cross-platform per the Mycelium cross-platform rule; only the Keychain read
 # is macOS-specific). Keychain WINS when both are present: an env var is the
 # weaker custody surface, so it must never silently shadow the vault.
-_ENV_PASSWORD = "ICLOUD_APP_SPECIFIC_PASSWORD"
-_ENV_ACCOUNT = "ICLOUD_ACCOUNT"
+_ENV_PASSWORD = "IMAP_APP_PASSWORD"
+_ENV_ACCOUNT = "IMAP_ACCOUNT"
 
 
 def _looks_hex_encoded(value: str) -> bool:
     """`security` hex-encodes values it considers non-plain-text.
 
-    Guarded tightly: an ASP is 16 lowercase letters in `xxxx-xxxx-xxxx-xxxx`
+    Guarded tightly: most app passwords are 16 letters in `xxxx-xxxx-xxxx-xxxx`
     form, which contains '-' and so can never satisfy this predicate. Without
     the length floor a short all-hex password would be silently mangled.
     """
@@ -83,7 +82,7 @@ def _read(service: str, account: str) -> Optional[str]:
 
 
 def get_account() -> Optional[str]:
-    """Return the configured iCloud address (the IMAP username).
+    """Return the configured email address (the IMAP username).
 
     Read from env only — this is an identifier, not a secret.
     """
@@ -92,7 +91,7 @@ def get_account() -> Optional[str]:
 
 
 def get_app_specific_password(account: str) -> Optional[str]:
-    """Return the ASP for `account`, or None if absent.
+    """Return the app password for `account`, or None if absent.
 
     Keychain first, env fallback. Never logged, never returned in a tool
     payload, never included in an error message.
@@ -108,7 +107,7 @@ def mask(secret: Optional[str]) -> str:
     """Render a secret safe for logs and health payloads.
 
     Shows only a length-bucketed suffix; never the full value, and never the
-    prefix (an ASP's first group is as identifying as its last).
+    prefix (an app password's first group is as identifying as its last).
     """
     if not secret:
         return "<absent>"

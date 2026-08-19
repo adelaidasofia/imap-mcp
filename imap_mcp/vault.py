@@ -21,8 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-ENV_VAULT_ROOT = "ICLOUD_MCP_VAULT_ROOT"
-FALLBACK_VAULT_ROOT = Path.home() / "AdelaidaNotes"
+ENV_VAULT_ROOT = "IMAP_MCP_VAULT_ROOT"
+FALLBACK_VAULT_ROOT = Path.home() / "Notes"
 
 _SHA_RE = re.compile(r"^body_sha256:\s*([0-9a-f]{64})\s*$", re.MULTILINE)
 
@@ -57,7 +57,7 @@ def render_note(item: dict[str, Any]) -> str:
     lines = [
         "---",
         "type: email",
-        "source: icloud",
+        "source: imap",
         f"source_id: {_yaml_escape(item.get('source_id'))}",
         f"title: {_yaml_escape(item.get('title'))}",
         f"author: {_yaml_escape(item.get('author'))}",
@@ -175,7 +175,7 @@ def write_items(
 def load_checkpoint(mailbox: str, *, vault_root: Optional[Path] = None) -> Optional[dict]:
     """Read the persisted IMAP cursor for a mailbox."""
     root, _ = (vault_root, "explicit") if vault_root else resolve_vault_root()
-    path = root / ".icloud-mcp" / "checkpoints.json"
+    path = root / ".imap-mcp" / "checkpoints.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         value = data.get(mailbox)
@@ -191,7 +191,7 @@ def save_checkpoint(
     not lose already-written notes, it only costs a re-scan next run.
     """
     root, _ = (vault_root, "explicit") if vault_root else resolve_vault_root()
-    path = root / ".icloud-mcp" / "checkpoints.json"
+    path = root / ".imap-mcp" / "checkpoints.json"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         try:

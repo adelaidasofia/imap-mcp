@@ -1,44 +1,81 @@
 {
   "manifest_version": "0.4",
-  "name": "icloud-mcp",
-  "display_name": "iCloud Mail for the second brain",
-  "version": "0.1.0",
-  "description": "Reads iCloud Mail over IMAP, writes markdown notes into an Obsidian vault, and emits RawItem records for the Mycelium runtime. Read-only against the mailbox.",
+  "name": "imap-mcp",
+  "display_name": "Mail for your second brain (IMAP)",
+  "version": "0.2.0",
+  "description": "Connects any IMAP mailbox \u2014 iCloud, Gmail, Outlook, Fastmail, university or company mail \u2014 to your second brain. Read-only against the mailbox.",
   "author": {
     "name": "adelaidasofia",
     "url": "https://github.com/adelaidasofia"
   },
-  "license": "UNLICENSED",
-  "keywords": ["mcp", "model-context-protocol", "claude", "fastmcp", "icloud", "imap", "email"],
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "fastmcp",
+    "imap",
+    "email",
+    "icloud",
+    "gmail",
+    "outlook",
+    "fastmail"
+  ],
   "server": {
     "type": "python",
-    "entry_point": "icloud_mcp/server.py",
+    "entry_point": "imap_mcp/server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run", "--directory", "${__dirname}", "icloud-mcp"],
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "imap-mcp"
+      ],
       "env": {
-        "ICLOUD_ACCOUNT": "${user_config.icloud_account}",
-        "ICLOUD_MCP_VAULT_ROOT": "${user_config.vault_root}"
+        "IMAP_ACCOUNT": "${user_config.account}",
+        "IMAP_PROVIDER": "${user_config.provider}",
+        "IMAP_HOST": "${user_config.imap_host}",
+        "IMAP_MCP_VAULT_ROOT": "${user_config.vault_root}"
       }
     }
   },
   "user_config": {
-    "icloud_account": {
+    "account": {
       "type": "string",
-      "title": "iCloud address",
-      "description": "The iCloud email address used as the IMAP username.",
+      "title": "Email address",
+      "description": "The address you sign in with. This is your IMAP username.",
       "required": true
+    },
+    "provider": {
+      "type": "string",
+      "title": "Mail provider",
+      "description": "icloud, gmail, outlook, fastmail, or generic.",
+      "default": "generic",
+      "required": true
+    },
+    "imap_host": {
+      "type": "string",
+      "title": "IMAP host (generic only)",
+      "description": "Only needed when provider is generic, e.g. mail.your-university.edu",
+      "required": false
     },
     "vault_root": {
       "type": "directory",
-      "title": "Vault root",
-      "description": "Obsidian vault that synced mail is written into.",
+      "title": "Vault folder",
+      "description": "Where synced mail is written as notes.",
       "required": true
     }
   },
   "tools_generated": true,
   "compatibility": {
-    "platforms": ["darwin", "linux", "win32"],
-    "runtimes": { "python": ">=3.11" }
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.11"
+    }
   }
 }

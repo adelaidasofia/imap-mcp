@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from icloud_mcp import keychain, vault
+from imap_mcp import keychain, vault
 
 
 # --------------------------------------------------------------------------
@@ -136,7 +136,7 @@ def test_resolve_vault_root_reports_its_source(monkeypatch, tmp_path):
 def test_rendered_note_marks_content_untrusted(tmp_path):
     note = vault.render_note(_item())
     assert "content_is_untrusted: true" in note
-    assert "source: icloud" in note
+    assert "source: imap" in note
 
 
 def test_checkpoint_round_trip(tmp_path):

@@ -1,102 +1,115 @@
-# icloud-mcp
+# imap-mcp
 
-iCloud Mail (IMAP) → second brain + Mycelium runtime.
+Connect any mailbox to your second brain.
 
-Local stdio MCP server. Reads iCloud Mail, writes markdown notes into the
-vault, and emits `RawItem`-shaped records the Mycelium runtime's adapter
-framework consumes directly.
+An MCP server that reads mail over IMAP — iCloud, Gmail, Outlook, Fastmail,
+university or company mail, anything that speaks the protocol — and turns it
+into markdown notes you can search, plus `RawItem` records the Mycelium
+runtime ingests directly.
 
-**Private repo.** Connectors sit inside the runtime side of the open-core
-boundary, never on a public repo.
+MIT licensed. Runs on macOS, Linux, and Windows.
 
-## Why local, not a hosted connector
+## Why IMAP
 
-An Apple app-specific password is unscoped: full mailbox read+write, no
-refresh token, no per-scope revocation. (iCloud's IMAP greeting advertises
-`AUTH=XOAUTH2`, but Apple publishes no third-party way to obtain such a
-token — `AUTH=PLAIN` with an ASP is the only door open to us.) Hosting it centrally would
-concentrate unscoped mailbox credentials on a server. It stays in the local
-Keychain. This is a deliberate departure from the usual remote-HTTP default
-for API wrappers — the deciding factor is credential custody, not transport.
+Every mail provider speaks IMAP. One connector covers all of them, which
+matters when a room full of people each bring a different mailbox.
 
-## Two consumers, one core
+Where a provider already has a proper OAuth connector, prefer it —
+[`google-workspace-mcp`](https://github.com/adelaidasofia/google-workspace-mcp)
+for Gmail, [`microsoft-365-mcp`](https://github.com/adelaidasofia/microsoft-365-mcp)
+for Outlook. OAuth gives scoped, revocable access; an IMAP app password does
+not. This server is for the mailboxes those two cannot reach: iCloud, which
+publishes no OAuth grant for Mail at all, and every smaller or self-hosted
+provider.
 
-`imap_client.py` is the only module that speaks IMAP. Two surfaces sit on it:
+## Supported providers
 
-- **Second brain** — `icloud_sync_to_vault` writes notes under
-  `External Inputs/iCloud Mail/<mailbox>/YYYY-MM-DD-<slug>.md`
-- **Mycelium runtime** — `icloud_export_for_runtime` emits records matching
-  `memory-runtime-pro:src/adapters/base.py::RawItem` field-for-field, so
-  `src/adapters/icloud/adapter.py` wraps this instead of reimplementing it
+| Provider | Host | Notes |
+|---|---|---|
+| `icloud` | `imap.mail.me.com` | Needs 2FA on the Apple ID |
+| `gmail` | `imap.gmail.com` | Prefer the OAuth connector; needs 2-Step Verification |
+| `outlook` | `outlook.office365.com` | Prefer the OAuth connector; many tenants disable IMAP |
+| `fastmail` | `imap.fastmail.com` | App passwords can be scoped to IMAP only |
+| `generic` | you set `IMAP_HOST` | University, company, self-hosted |
 
-`tests/test_normalize.py::RAW_ITEM_FIELDS` hardcodes the runtime's field list
-so a drift in either repo fails here rather than at port time.
+Ask the server itself with `imap_list_providers` — it returns each provider's
+host and the exact page where you mint a password.
+
+## Setup
+
+See [SETUP.md](SETUP.md). Three steps, and you mint the password yourself.
 
 ## Tools
 
 | Tool | Access | Purpose |
 |---|---|---|
-| `icloud_health` | read | reachability + credential presence |
-| `icloud_list_mailboxes` | read | exact folder names |
-| `icloud_search_messages` | read | compact summaries, no bodies |
-| `icloud_read_message` | read | one full message |
-| `icloud_sync_to_vault` | **write** | notes into the vault |
-| `icloud_export_for_runtime` | read | `RawItem` records |
-| `icloud_explain_filter` | read | why a message was or wasn't ingested |
+| `imap_list_providers` | read | providers + where to get a password |
+| `imap_health` | read | is it reachable, does the credential work |
+| `imap_list_mailboxes` | read | exact folder names |
+| `imap_search_messages` | read | compact summaries, no bodies |
+| `imap_read_message` | read | one full message |
+| `imap_sync_to_vault` | **write** | notes into your vault |
+| `imap_export_for_runtime` | read | `RawItem` records |
+| `imap_explain_filter` | read | why a message was or wasn't ingested |
 
-Seven actions, under the ~15 threshold where search+execute starts paying —
-so it's one tool per action.
+Eight actions, under the ~15 threshold where a search+execute surface starts
+paying for itself, so it's one tool per action.
 
-## Safety rails
+## Safety
 
-**The mailbox is never modified.** Sessions open with `EXAMINE` (read-only)
-and every fetch uses `BODY.PEEK[]`. A bare `FETCH BODY[]` sets `\Seen` as a
-side effect, so a "read-only" sync would silently mark your unread mail read.
-The only tool that writes anything writes *notes into the vault*.
+**Your mailbox is never modified.** Sessions open with `EXAMINE` (read-only)
+and every fetch uses `BODY.PEEK[]`. A plain `FETCH BODY[]` sets the `\Seen`
+flag as a side effect, so a "read-only" sync would quietly mark your unread
+mail as read. The only tool that writes anything writes *notes into your
+vault*.
 
-**UIDVALIDITY is checked every incremental run.** IMAP UIDs are stable only
-within a UIDVALIDITY epoch. If iCloud renumbers a mailbox, a stale cursor
-points at unrelated messages and the sync skips real mail forever. On a
-mismatch the cursor is discarded and the response says `uidvalidity_reset:
-true` rather than quietly under-reporting.
+**Your password never leaves your machine.** It lives in the OS keychain, is
+never written to a config file, never logged, and never returned by a tool.
+IMAP `LOGIN` failures echo the failed command back — which contains the
+password — so auth errors are replaced wholesale rather than passed through.
 
-**Email bodies are untrusted input.** Every body is wrapped in an
+**Email is treated as untrusted input.** Every message body is wrapped in an
 `UNTRUSTED_EMAIL_BODY` fence, and a body that forges the closing marker to
-escape its own fence is neutralised. Message content is data to summarise,
-never instructions to follow.
+break out of its own fence is neutralised. Mail is data to summarise, never
+instructions to follow. This matters more than it sounds: anyone can send you
+an email, so an unfenced body is a stranger writing directly into your
+assistant's context.
 
-**The credential never surfaces.** IMAP `LOGIN` failures echo the command
-line back — which contains the password — so auth errors are replaced
-wholesale rather than interpolated. `keychain.mask()` shows a suffix only,
-never the prefix.
+**Nothing is skipped silently.** If the server renumbers a mailbox
+(`UIDVALIDITY` changed), the sync cursor is discarded and the response says
+`uidvalidity_reset: true` — a stale cursor would otherwise point at unrelated
+messages and skip real mail forever. Filtered messages carry the rule that
+dropped them, and `imap_explain_filter` explains any single one.
 
-**Vault root is always reported.** Every write result carries `vault_root`
-and `root_source`. This is a direct lesson from the `auto-send.py` incident
-where a silent default misfiled ~380 files over three months because the
-happy path looked identical either way.
+**Every write says where it went.** Results carry `vault_root` and
+`root_source`, so mail landing in the wrong folder is visible in the first
+response rather than discovered months later.
 
 ## Filter
 
-Mirrors the MYC-148 smart-default contract from the Gmail adapter, mapped
-onto signals IMAP actually carries:
+Smart defaults keep what matters and drop the noise. Folder names differ by
+provider and by language, so they come from the provider profile rather than
+being hardcoded — Gmail nests under `[Gmail]/`, Outlook says `Junk Email`, a
+Spanish-locale account says `Enviados`.
 
-| Gmail | iCloud |
+| Keep | Drop |
 |---|---|
-| label `SENT` | mailbox `Sent Messages` |
-| `replied_by_user` | `\Answered` flag |
-| label `IMPORTANT` | `\Flagged` flag |
-| `CATEGORY_PROMOTIONS` | `List-Unsubscribe` header |
-| label `SPAM`/`TRASH` | mailbox `Junk`/`Deleted Messages` |
+| mail you sent | spam / junk / trash folders |
+| threads you replied to (`\Answered`) | newsletters (`List-Unsubscribe`) |
+| flagged mail (`\Flagged`) | `noreply@`-style automated senders |
 
-Precedence is the house rule: explicit block beats explicit allow, both beat
-smart defaults. `icloud_explain_filter` names the exact rule that dropped a
-message, so a filtered message is never indistinguishable from one that never
-arrived.
+Explicit block beats explicit allow; both beat smart defaults. Turn defaults
+off entirely with `apply_smart_filter=False`.
 
-## Setup
+## Two consumers, one core
 
-See [SETUP.md](SETUP.md). You mint the app-specific password; nothing here
-creates or enters credentials on your behalf.
+`imap_client.py` is the only module that speaks IMAP.
+
+- **Second brain** — `imap_sync_to_vault` writes
+  `External Inputs/<Provider>/<mailbox>/YYYY-MM-DD-<slug>.md`
+- **Mycelium runtime** — `imap_export_for_runtime` emits records matching the
+  runtime's `RawItem` field-for-field, so the server-side adapter wraps this
+  rather than reimplementing it
 
 ## Tests
 
@@ -104,6 +117,10 @@ creates or enters credentials on your behalf.
 uv run pytest -q
 ```
 
-53 tests. The three security guards (fence escaping, path containment,
-credential non-leakage) have each been mutation-tested — the guard removed,
-the corresponding test confirmed failing, the guard restored.
+65 tests, no network required. The security guards (fence escaping, path
+containment, credential non-leakage) have each been mutation-tested: the
+guard removed, the matching test confirmed failing, the guard restored.
+
+**Not yet verified:** no live smoke test has run against a real mailbox on
+any provider. Every test uses synthetic fixtures, which proves the parsing
+and filtering logic but not that a live server accepts these exact commands.
