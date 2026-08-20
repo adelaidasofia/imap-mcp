@@ -1,5 +1,30 @@
 # Setup
 
+## The fast way: paste this to Claude
+
+Copy this whole block into Claude Code and it will walk you through the rest,
+asking only for what it cannot find on its own:
+
+```
+Set up imap-mcp for my email.
+
+1. Clone https://github.com/adelaidasofia/imap-mcp into ~/.claude/imap-mcp
+2. Ask me which email I want to connect, then tell me exactly where to make
+   an app password for that provider and wait for me to make it.
+3. Walk me through storing that password in my OS keychain. Never ask me to
+   paste the password into a chat message or a config file.
+4. Add the server to my MCP config with the right IMAP_PROVIDER for my email
+   and my vault folder as IMAP_MCP_VAULT_ROOT.
+5. Run imap_health and show me the result. If it fails, read the error kind
+   and fix the actual cause instead of guessing.
+```
+
+Everything below is the same thing by hand, if you would rather see the parts.
+
+---
+
+# Setup by hand
+
 Three steps. The first is yours, because minting a credential is not
 something software should do on your behalf.
 

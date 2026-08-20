@@ -18,7 +18,7 @@ IMAP here is the fallback for accounts those connectors cannot reach.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -38,8 +38,9 @@ class Provider:
     label: str
     imap_host: Optional[str]
     imap_port: int = 993
-    smtp_host: Optional[str] = None
-    smtp_port: int = 587
+    # No SMTP fields on purpose. Nothing here sends mail, and carrying a
+    # populated smtp_host would advertise a capability that does not exist.
+
     # Folders whose contents should never be ingested.
     skip_mailboxes: tuple[str, ...] = ()
     # Folders that mean "the user wrote this", always worth keeping.
@@ -58,7 +59,6 @@ PROVIDERS: dict[str, Provider] = {
         slug="icloud",
         label="iCloud Mail",
         imap_host="imap.mail.me.com",
-        smtp_host="smtp.mail.me.com",
         skip_mailboxes=_COMMON_SKIP + ("archive",),
         sent_mailboxes=("sent messages",),
         password_url="https://appleid.apple.com",
@@ -68,7 +68,6 @@ PROVIDERS: dict[str, Provider] = {
         slug="gmail",
         label="Gmail / Google Workspace (IMAP)",
         imap_host="imap.gmail.com",
-        smtp_host="smtp.gmail.com",
         # Gmail nests special folders under "[Gmail]/". "All Mail" is skipped
         # deliberately: every message already appears in its own label, so
         # ingesting it duplicates the entire mailbox.
@@ -81,7 +80,6 @@ PROVIDERS: dict[str, Provider] = {
         slug="outlook",
         label="Outlook / Microsoft 365 (IMAP)",
         imap_host="outlook.office365.com",
-        smtp_host="smtp.office365.com",
         skip_mailboxes=_COMMON_SKIP + ("junk email", "deleted items"),
         sent_mailboxes=("sent items",),
         password_url="https://account.microsoft.com/security",
@@ -91,7 +89,6 @@ PROVIDERS: dict[str, Provider] = {
         slug="fastmail",
         label="Fastmail",
         imap_host="imap.fastmail.com",
-        smtp_host="smtp.fastmail.com",
         skip_mailboxes=_COMMON_SKIP,
         sent_mailboxes=("sent",),
         password_url="https://app.fastmail.com/settings/security/apppasswords",
@@ -101,7 +98,6 @@ PROVIDERS: dict[str, Provider] = {
         slug="generic",
         label="Any other IMAP mailbox",
         imap_host=None,
-        smtp_host=None,
         skip_mailboxes=_COMMON_SKIP,
         sent_mailboxes=("sent", "sent items", "sent messages", "enviados"),
         password_url="",
