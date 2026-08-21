@@ -2,8 +2,8 @@
   "manifest_version": "0.4",
   "name": "imap-mcp",
   "display_name": "Mail for your second brain (IMAP)",
-  "version": "0.2.0",
-  "description": "Connects any IMAP mailbox \u2014 iCloud, Gmail, Outlook, Fastmail, university or company mail \u2014 to your second brain. Read-only against the mailbox.",
+  "version": "0.3.0",
+  "description": "Connects any IMAP mailbox \u2014 iCloud, Gmail, Outlook, Fastmail, university or company mail \u2014 to your second brain. Read-only unless you explicitly enable drafts and mailbox management, and it can never send or permanently delete.",
   "author": {
     "name": "adelaidasofia",
     "url": "https://github.com/adelaidasofia"
@@ -19,7 +19,9 @@
     "icloud",
     "gmail",
     "outlook",
-    "fastmail"
+    "fastmail",
+    "drafts",
+    "email-drafts"
   ],
   "server": {
     "type": "python",
@@ -36,7 +38,8 @@
         "IMAP_ACCOUNT": "${user_config.account}",
         "IMAP_PROVIDER": "${user_config.provider}",
         "IMAP_HOST": "${user_config.imap_host}",
-        "IMAP_MCP_VAULT_ROOT": "${user_config.vault_root}"
+        "IMAP_MCP_VAULT_ROOT": "${user_config.vault_root}",
+        "IMAP_MCP_ENABLE_WRITES": "${user_config.enable_writes}"
       }
     }
   },
@@ -65,6 +68,13 @@
       "title": "Vault folder",
       "description": "Where synced mail is written as notes.",
       "required": true
+    },
+    "enable_writes": {
+      "type": "string",
+      "title": "Allow writing to the mailbox",
+      "description": "Leave empty for read-only. Set to 1 to add drafts, delete (to Trash), archive, move, and mark read. Deleting never destroys mail and nothing is ever sent.",
+      "default": "",
+      "required": false
     }
   },
   "tools_generated": true,

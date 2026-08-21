@@ -1,7 +1,7 @@
 [project]
 name = "imap-mcp"
-version = "0.1.0"
-description = "IMAP mail MCP server (iCloud, Gmail, Outlook, Fastmail, any host) — second brain ingest + Mycelium runtime export"
+version = "0.3.0"
+description = "IMAP mail MCP server (iCloud, Gmail, Outlook, Fastmail, any host) — second brain ingest + Mycelium runtime export, with an opt-in write plane for drafts and mailbox management"
 requires-python = ">=3.11"
 dependencies = [
   "fastmcp>=3.4.7",
