@@ -170,7 +170,13 @@ def encode_mailbox(name: str) -> str:
         else:
             buf.append(ch)
     flush()
-    return '"' + "".join(out).replace('"', '\\"') + '"'
+    # Escape the backslash FIRST, then the quote. RFC 3501 quoted strings
+    # escape both, and doing only the quote leaves a name ending in a
+    # backslash able to escape its own closing quote — `INBOX\` would go out
+    # as `"INBOX\"`, and everything after it would be read by the server as
+    # command syntax rather than as a mailbox name.
+    body = "".join(out).replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + body + '"'
 
 
 _LIST_RE = re.compile(rb'\((?P<flags>[^)]*)\)\s+"(?P<delim>[^"]*)"\s+(?P<name>.+)')
@@ -245,10 +251,17 @@ def connect(
     try:
         yield conn
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        # NEVER `conn.close()`. imaplib's own docstring for CLOSE says
+        # "Deleted messages are removed from writable mailbox" — it is an
+        # implicit EXPUNGE. It is harmless on the read path, which only ever
+        # opens mailboxes with EXAMINE, but the write plane selects
+        # read-write, and a mailbox can already contain messages some OTHER
+        # client flagged \Deleted. Closing such a session would permanently
+        # destroy mail this package never touched, which is exactly the
+        # failure the never-expunge rail exists to prevent.
+        #
+        # LOGOUT ends the session without expunging anything, and imaplib's
+        # logout() shuts the socket down as well, so nothing leaks.
         try:
             conn.logout()
         except Exception:

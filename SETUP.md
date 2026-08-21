@@ -17,6 +17,8 @@ Set up imap-mcp for my email.
    and my vault folder as IMAP_MCP_VAULT_ROOT.
 5. Run imap_health and show me the result. If it fails, read the error kind
    and fix the actual cause instead of guessing.
+6. Leave writing turned off for now. Tell me it exists and what it would let
+   me do, and that I can turn it on later.
 ```
 
 Everything below is the same thing by hand, if you would rather see the parts.
@@ -25,8 +27,9 @@ Everything below is the same thing by hand, if you would rather see the parts.
 
 # Setup by hand
 
-Three steps. The first is yours, because minting a credential is not
-something software should do on your behalf.
+Three steps to read your mail, plus an optional fourth to let it write.
+The first is yours, because minting a credential is not something software
+should do on your behalf.
 
 ## 1. Find your provider
 
@@ -119,6 +122,38 @@ Every failure is classified rather than thrown:
 Then try `imap_list_mailboxes` to see your folders, and
 `imap_sync_to_vault` with `dry_run=True` to see exactly which notes would be
 written before anything is.
+
+## 5. Optional: let it write
+
+Everything above is read-only. Your mail cannot be changed by any of it.
+
+If you also want drafts and mailbox management — writing drafts, deleting,
+archiving, moving, marking read — add one more line to the env block:
+
+```json
+"IMAP_MCP_ENABLE_WRITES": "1"
+```
+
+Restart the server and six more tools appear. Until you do this they are not
+merely restricted, they are not registered at all: nothing can call them.
+
+Worth knowing before you turn it on:
+
+- **Deleting moves mail to Trash.** Nothing is permanently destroyed. The
+  server cannot expunge, and it will refuse to act at all on the rare server
+  that has no safe move.
+- **Drafts are never sent.** There is no SMTP anywhere in this package. You
+  send from your own mail client.
+- **Bulk operations preview first** and cap at 25 messages, and every move
+  writes an undo record naming where each message went, under
+  `.imap-mcp/undo/` in your vault folder.
+- **Nothing you receive can trigger a change.** No mutating tool accepts a
+  search or a rule, only specific messages you picked, so an email asking
+  for a deletion has no way to cause one.
+
+Note that the app password you minted in step 2 already allows writing at
+most providers. This flag is not what gives the server permission — the
+credential did that. It is what decides whether the tools exist.
 
 ## A note on Outlook
 

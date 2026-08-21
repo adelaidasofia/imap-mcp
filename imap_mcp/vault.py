@@ -206,3 +206,40 @@ def save_checkpoint(
         os.replace(tmp, path)
     except OSError:
         return
+
+
+def save_undo_manifest(
+    manifest: dict[str, Any], *, vault_root: Optional[Path] = None
+) -> dict[str, Any]:
+    """Persist an undo manifest next to the checkpoints.
+
+    Returned in the tool response as well, but a response scrolls out of a
+    conversation and the mail is still moved. On disk it survives, which is
+    the difference between "reversible" and "reversible if you still have
+    the transcript". Best-effort: a manifest that cannot be written must not
+    fail an operation that already happened, so the failure is REPORTED in
+    the result rather than raised — a silent miss here would be a
+    reversibility claim that is quietly false.
+    """
+    root, root_source = (vault_root, "explicit") if vault_root else resolve_vault_root()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    operation = re.sub(r"[^a-z0-9]+", "-", str(manifest.get("operation") or "op").lower())
+    path = root / ".imap-mcp" / "undo" / f"{stamp}-{operation}.json"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as exc:
+        return {
+            "undo_manifest_path": None,
+            "undo_manifest_error": str(exc),
+            "vault_root": str(root),
+            "root_source": root_source,
+        }
+    return {
+        "undo_manifest_path": str(path),
+        "undo_manifest_error": None,
+        "vault_root": str(root),
+        "root_source": root_source,
+    }
