@@ -195,7 +195,7 @@ mutating verb, and the write module for the absence of any body fetch.
 uv run pytest -q
 ```
 
-124 tests, no network required.
+130 tests, no network required.
 
 Every security guard has been mutation-tested: the guard removed, the
 matching test confirmed failing, the guard restored. For the write plane
@@ -206,11 +206,13 @@ remembers doing —
 uv run python tools/mutation_check.py
 ```
 
-takes a disposable copy of the repo and, for each of nineteen mutations,
-confirms the target test passes first, breaks exactly one guard, and
-confirms the same test now fails. It has already earned it: the batch cap
-turned out to be enforced at two layers, each masking the other, so neither
-was actually pinned by a test until the harness said so.
+takes a disposable copy of the repo and, for each of twenty-four
+mutations, confirms the target test passes first, breaks exactly one guard,
+and confirms the same test now fails. It has already earned that twice: the
+batch cap turned out to be enforced at two layers, each masking the other,
+so neither was actually pinned by a test until the harness said so — and
+when one of its own anchors was written wrong, it reported the mutation as
+unapplied rather than scoring it caught.
 
 **Not yet verified:** no live smoke test has run against a real mailbox on
 any provider, for reading or for writing. Every test uses synthetic
